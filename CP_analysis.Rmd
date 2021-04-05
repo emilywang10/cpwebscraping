@@ -1,0 +1,69 @@
+---
+title: "Web Scraping project notes"
+output: html_notebook
+---
+
+Introduction:
+
+As the world's largest health club aggregator, Classpass provides users with discounted access to a variety of fitness classes and athletic facilities via a monthly subscription plan. The dataset is scraped from Classpass.com's New York area fitness venues using Selenium. Analysis will be performed from the perspective of a corporate wellness company looking to gain insight on local trends and explore potential partnerships to enrich their client offerings and support small businesses. This will focus on facilities located in Manhattan and Jersey City in order to reflect the locations of the office buildings which are being serviced.
+
+Additionally, analysis will be performed in an effort to learn more about livestream services, which many studios have started offering because of the COVID-19 lockdowns.
+
+Part 1: initial setup, load packages, cleaning
+```{r}
+df <- read.csv("classpass.csv")
+library(tidyverse)
+summary(df)
+
+#highest rated + most popular studios
+df %>% arrange(desc(num_ratings), desc(avg_rating)) %>% select(name, avg_rating, num_ratings, livestream)
+library(plotly)
+plot_ly(y=df$avg_rating, type="box")
+
+```
+
+Part 2: EDA
+
+
+```{r}
+#View the ratings distribution
+ratings_dist = ggplot(df, aes(x=avg_rating))+geom_histogram(binwidth = 0.1, na.rm = TRUE, fill='darkblue')+ggtitle('Distribution of Avg Ratings')+xlab("Average Rating")+ylab("")
+ratings_dist
+#It looks like the vast majority of venues are rated above 4.5/5.0, which is a very high rating.Thus, it looks like average rating will not be extremely useful.
+
+#compare livestream ratings with non-livestream
+livestreams = df %>% filter(., livestream=='True')
+count(livestreams)
+#add a clean livestream column
+df = df %>% mutate(livestream_ = case_when(
+  str_detect(df$tags, 'livestream') ~"Livestream",
+  TRUE ~ "No livestream")) %>% na.omit()
+df_drop %>% group_by(livestream_) %>% summarise(n=n(), mean_rating=mean(avg_rating), mean_num_reviews=mean(num_ratings))
+
+
+#there are 159 studios based in the NY area that offer livestream. Do these studios tend to rate better?
+df %>% drop_na(livestream) %>% group_by(livestream) %>% summarise(avg_rating = mean(avg_rating, na.rm=TRUE))
+#The average rating for studios with and without livestreaming is very similar, which is unsurprising since the ratings are so tightly distributed in general.
+
+plot_ly(data=df_drop, x=~num_ratings, color=~livestream_) %>% add_histogram()
+#Let's organize the num_ratings category to get a cleaner look in the next section
+```
+```
+
+Part 3: Number of ratings into buckets for cleaner visualizations (aggregate the <100 review instances)
+```{r}
+#bucket number of ratings
+df = df %>% mutate(rating_bucket = case_when(
+  num_ratings=='5000' ~ '5000+', num_ratings=='1000' ~ '1000 - 5000', num_ratings =='500' ~ '100 - 500', num_ratings =='100' ~ '100 - 500', TRUE ~ '<100'
+))
+#bucket count plot
+plot_ly(data=df, x=~df$rating_bucket) %>% add_histogram() %>% layout(xaxis = list(title=""))
+
+df = right_join(df, df_drop)
+
+#bucket count livestream plot
+plot_ly(data=df, x=~df$rating_bucket, color =~df$livestream_) %>% add_histogram() %>% layout(xaxis = list(title=""))
+#avg review livestream plot
+plot_ly(data=df, y=~df$avg_rating, color =~df$livestream_, type="box") %>% layout(yaxis = list(title=""))
+```
+
